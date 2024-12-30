@@ -1,0 +1,86 @@
+﻿@{
+    ViewData["Title"] = "Private Chat";
+}
+
+<h1>Private Chat</h1>
+
+<div>
+    <label>Your Username:</label>
+    <input type="text" id="usernameInput" />
+    <button id="registerButton">Register</button>
+</div>
+
+<h2>Users Online:</h2>
+<ul id="userList"></ul>
+
+<div>
+    <h3>Private Chat</h3>
+    <label>To:</label>
+    <input type="text" id="toUserInput" />
+    <br />
+    <label>Message:</label>
+    <input type="text" id="privateMessageInput" />
+    <button id="sendPrivateButton">Send</button>
+</div>
+
+<h2>Messages:</h2>
+<ul id="messagesList"></ul>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/7.0.5/signalr.min.js"></script>
+<script>
+    const connection = new signalR.HubConnectionBuilder()
+        .withUrl("/chatHub")
+        .build();
+
+    async function startConnection() {
+        try {
+            await connection.start();
+            console.log("SignalR connected.");
+        } catch (err) {
+            console.error(err);
+            setTimeout(startConnection, 5000);
+        }
+    }
+
+    connection.onclose(async () => {
+        await startConnection();
+    });
+
+    connection.on("UserConnected", (username) => {
+        console.log(username, "this is comming data");
+        const li = document.createElement("li");
+        li.textContent = username;
+        li.id = `user-${username}`;
+        document.getElementById("userList").appendChild(li);
+    });
+
+    connection.on("UserDisconnected", (username) => {
+        const userElement = document.getElementById(`user-${username}`);
+        if (userElement) userElement.remove();
+    });
+
+    connection.on("ReceivePrivateMessage", (fromUser, message) => {
+        const li = document.createElement("li");
+        li.textContent = `Private from ${fromUser}: ${message}`;
+        document.getElementById("messagesList").appendChild(li);
+    });
+
+    connection.on("Error", (error) => {
+        alert(error);
+    });
+
+    startConnection();
+
+    document.getElementById("registerButton").addEventListener("click", async () => {
+        const username = document.getElementById("usernameInput").value;
+        await connection.invoke("RegisterUser", username).catch(err => console.error(err));
+    });
+
+    document.getElementById("sendPrivateButton").addEventListener("click", async () => {
+        const toUser = document.getElementById("toUserInput").value;
+        const message = document.getElementById("privateMessageInput").value;
+        const fromUser = document.getElementById("usernameInput").value;
+
+        await connection.invoke("SendPrivateMessage", fromUser, toUser, message).catch(err => console.error(err));
+    });
+</script>
